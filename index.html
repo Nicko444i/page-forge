@@ -14,6 +14,9 @@
   .tag{font:600 11px/1 ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--mut)}
   .pw{margin-left:auto;display:flex;gap:6px;align-items:center}
   .pw input{background:#0f0f11;border:1px solid var(--inkline);color:#e9e6df;border-radius:7px;padding:7px 10px;font-size:12px;width:130px}
+  .store-sel{display:flex;gap:6px;align-items:center;margin-left:16px}
+  .store-sel label{font:600 10px/1 ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)}
+  .store-sel select{background:#0f0f11;border:1px solid var(--accent);color:#e9e6df;border-radius:7px;padding:7px 10px;font-size:12px;min-width:150px;font-weight:600}
   .grid{display:grid;grid-template-columns:minmax(320px,440px) 1fr;min-height:calc(100vh - 58px)}
   @media(max-width:860px){.grid{grid-template-columns:1fr}}
   .in{background:var(--ink2);padding:20px;border-right:1px solid var(--inkline)}
@@ -55,6 +58,7 @@
 <div class="head">
   <div class="logo">Page <b>Forge</b></div>
   <div class="tag">Genera &middot; Installa &middot; Shopify</div>
+  <div class="store-sel"><label>Negozio</label><select id="storeSel"><option>Caricamento…</option></select></div>
   <div class="pw"><input id="pw" type="password" placeholder="password (se impostata)" /></div>
 </div>
 
@@ -132,6 +136,7 @@
 <script>
 const $ = (s) => document.querySelector(s);
 let currentUps = null, currentTab = "script", selectedProduct = null;
+function storeId(){ const el=$("#storeSel"); return el && el.value ? el.value : ""; }
 
 function pw(){ return $("#pw").value.trim(); }
 function headers(){ const h={"content-type":"application/json"}; if(pw()) h["x-app-password"]=pw(); return h; }
@@ -199,7 +204,7 @@ function renderPreview(preview, engine){
 $("#loadProducts").onclick = async () => {
   $("#products").innerHTML='<div class="mini">Carico...</div>';
   try{
-    const r = await fetch("/api/products",{headers:headers()});
+    const r = await fetch("/api/products?store="+encodeURIComponent(storeId()),{headers:headers()});
     const d = await r.json();
     if(!r.ok) throw new Error(d.error||("HTTP "+r.status));
     $("#products").innerHTML = d.products.map(p=>
@@ -219,7 +224,7 @@ $("#install").onclick = async () => {
   const btn=$("#install"); btn.disabled=true; const old=btn.textContent; btn.innerHTML='<span class="spin"></span>Installazione...';
   $("#instOut").innerHTML="";
   try{
-    const payload={ ups: currentUps, assign: !noAssign, productId: noAssign?null:selectedProduct,
+    const payload={ ups: currentUps, store: storeId(), assign: !noAssign, productId: noAssign?null:selectedProduct,
       buyBoxName: $("#buyBox").value, templateName: $("#tplName").value, name: $("#name").value };
     const r = await fetch("/api/install",{method:"POST",headers:headers(),body:JSON.stringify(payload)});
     const d = await r.json();
@@ -232,6 +237,22 @@ $("#install").onclick = async () => {
   }catch(e){ $("#instOut").innerHTML='<div class="err">'+e.message+'</div>'; }
   btn.disabled=false; btn.textContent=old;
 };
+
+// --- Selettore negozio ---
+async function loadStores(){
+  try{
+    const r = await fetch("/api/stores",{headers:headers()});
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.error||("HTTP "+r.status));
+    const sel = $("#storeSel");
+    if(!d.stores || !d.stores.length){ sel.innerHTML='<option value="">nessuno store</option>'; return; }
+    const last = localStorage.getItem("pf_store") || "";
+    sel.innerHTML = d.stores.map(s=>'<option value="'+s.id+'"'+(s.id===last?' selected':'')+'>'+s.name+'</option>').join("");
+    sel.onchange = ()=>{ localStorage.setItem("pf_store", sel.value); selectedProduct=null; $("#products").innerHTML=""; };
+    if(last) sel.value = last;
+  }catch(e){ $("#storeSel").innerHTML='<option value="">errore: '+e.message+'</option>'; }
+}
+loadStores();
 </script>
 </body>
 </html>
