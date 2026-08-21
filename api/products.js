@@ -1,18 +1,17 @@
-import { listProducts } from "../lib/shopify.js";
+import { listProducts, getStore } from "../lib/shopify.js";
 import { checkAuth } from "../lib/auth.js";
 
 export default async function handler(req, res) {
   if (!checkAuth(req, res)) return;
   try {
-    const nodes = await listProducts(50);
+    const store = getStore(req.query && req.query.store);
+    const nodes = await listProducts(store, 50);
     const products = nodes.map((p) => ({
-      id: p.id,
-      title: p.title,
-      handle: p.handle,
+      id: p.id, title: p.title, handle: p.handle,
       template: p.templateSuffix || "default",
       image: (p.featuredImage && p.featuredImage.url) || null,
     }));
-    res.status(200).json({ products });
+    res.status(200).json({ store: { id: store.id, name: store.name }, products });
   } catch (e) {
     res.status(500).json({ error: "Lista prodotti fallita: " + e.message });
   }
